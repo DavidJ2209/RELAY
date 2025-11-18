@@ -8,23 +8,19 @@ app = FastAPI()
 
 # ================== CONFIGURACIÓN BLOCKCHAIN ==================
 
-# Conexión a Sepolia vía Alchemy
-RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/I8RrS7zGPkXpAVuRWoeiT"
+RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/dSfxKDUR1T06yEdb3pPDzA94HzMYgs_e"
 
-# Dirección del contrato
 CONTRACT_ADDRESS = Web3.to_checksum_address(
     "0x50268060AAd99FEdB907080Ec8138E9f4C5A0e2d"
 )
 
-# Private key de PRUEBA (la que autorizaste usar aquí).
 PRIVATE_KEY = os.environ.get(
     "PRIVATE_KEY",
-    "b0544e7ccd4f820e58d2a2e9cb8cb0b84166c616b4b1a60e03668b3a922d2f6f"
+    "945fa986313ff16e10e94b6f71ff8d6f4624cd29f1e02cfd73113d81cdd2b4a0"
 )
 
 CHAIN_ID = 11155111  # Sepolia
 
-# ABI mínimo con la función storeReading(...)
 ABI_JSON = [
     {
         "inputs": [
@@ -44,7 +40,7 @@ ABI_JSON = [
 # ================== CONFIGURACIÓN PINATA ==================
 
 PINATA_JWT = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJmZDE0ZWZlNy0zNGMwLTQ4YmQtODE1NS0wZjA3ODM1M2FlODkiLCJlbWFpbCI6Im1lemFkYXZpZDIwMDVAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImZhZDdjMGY2MzJhYjU5NTM3NzhmIiwic2NvcGVkS2V5U2VjcmV0IjoiNDc2Y2YwMTZlYmFhOTZlM2JjNDY4YWZmY2NhYmI5OGEzYjVlOGUyZWIxYzk5N2YxNGEzYjlkOGM1ZDFmY2NjOCIsImV4cCI6MTc5NDk1ODY1MH0.F1mCR7O7-I2p2vtrOjVDE5Nu7Hq_aRTDT0gd2j8fz_E"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJhNTNlZGVhMS0zM2Q4LTRhNTMtYTVjNS05ZWQ3NTBiNTMyMTEiLCJlbWFpbCI6InViZXJ0aWNvbWlndWVsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI4ZjhmNzU5YzM3ZmRkMzU4OWFlZSIsInNjb3BlZEtleVNlY3JldCI6Ijk3NzI5NTIxODQyYmI1MWM1ZTczY2I3M2YyOWY5YjZjMzFlZjczMGFjNTEzNDBlNjZhYjBiNDI4M2MwOGRkZmMiLCJleHAiOjE3OTQ5NTg1NjR9.VLhFoJGb1h9D85MZ2E2j70Ckk7HUalvpvk-x2yonRjk"
 )
 
 PINATA_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
@@ -61,17 +57,18 @@ print("[INFO] Relayer usando cuenta:", account.address)
 
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=ABI_JSON)
 
+# ================== ALMACENAMIENTO LOCAL (GET) ==================
+lecturas_local = []
+
 
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Relayer funcionando"}
 
 
+# ================== FUNCIÓN PARA SUBIR A PINATA ==================
+
 def subir_a_pinata(payload: dict) -> Optional[str]:
-    """
-    Sube un JSON a Pinata y devuelve el CID (hash IPFS).
-    Si falla, devuelve None.
-    """
     if not PINATA_JWT:
         print("[WARN] PINATA_JWT vacío, no se subirá a IPFS.")
         return None
@@ -92,17 +89,10 @@ def subir_a_pinata(payload: dict) -> Optional[str]:
         return None
 
 
+# ================== ENDPOINT POST (RECIBIR ESP32) ==================
+
 @app.post("/api/lecturas")
 async def recibir_lectura(req: Request):
-    """
-    Espera un JSON del ESP32/Wokwi con:
-    {
-        "device_id": "esp32-dht22-aula-1",
-        "temperature": 37.9,
-        "humidity": 70.0,
-        "timestamp_ms": 1731000000000
-    }
-    """
     data = await req.json()
     print("[DEBUG] Payload recibido:", data)
 
@@ -111,11 +101,19 @@ async def recibir_lectura(req: Request):
     hum = float(data["humidity"])
     timestamp_ms = int(data["timestamp_ms"])
 
-    # Escalar a enteros: ej. 25.3 C -> 253, 70.1% -> 701
+    # Guardar localmente para poder consultarlo con GET
+    lecturas_local.append({
+        "device_id": device_id,
+        "temperature": temp_c,
+        "humidity": hum,
+        "timestamp_ms": timestamp_ms
+    })
+
+    # Escalar para contrato
     temp_times10 = int(round(temp_c * 10))
     hum_times10 = int(round(hum * 10))
 
-    # 1) Subir JSON completo de la lectura a Pinata
+    # Subir JSON completo a Pinata
     pinata_payload = {
         "device_id": device_id,
         "temperature_c": temp_c,
@@ -124,7 +122,7 @@ async def recibir_lectura(req: Request):
     }
     cid = subir_a_pinata(pinata_payload) or ""
 
-    # 2) Construir transacción a storeReading(...)
+    # Construir transacción
     nonce = w3.eth.get_transaction_count(account.address)
 
     tx = contract.functions.storeReading(
@@ -141,8 +139,6 @@ async def recibir_lectura(req: Request):
 
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
 
-    # ⚠️ CAMBIO IMPORTANTE PARA web3 7.x:
-    # antes: signed_tx.rawTransaction
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
     print("[INFO] Tx enviada:", tx_hash.hex())
@@ -155,6 +151,10 @@ async def recibir_lectura(req: Request):
         "block": receipt.blockNumber,
         "cid": cid,
     }
-    @app.get("/api/lecturas")
+
+
+# ================== ENDPOINT GET (MOSTRAR LECTURAS) ==================
+
+@app.get("/api/lecturas")
 def obtener_lecturas():
     return lecturas_local
