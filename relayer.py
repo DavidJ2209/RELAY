@@ -11,7 +11,7 @@ app = FastAPI()
 RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/I8RrS7zGPkXpAVuRWoeiT"
 
 CONTRACT_ADDRESS = Web3.to_checksum_address(
-    "0x50268060AAd99FEdB907080Ec8138E9f4C5A0e2d"
+    "0x96281e92463959894eeba1b7e87ddfe7be233d4e"
 )
 
 PRIVATE_KEY = os.environ.get(
